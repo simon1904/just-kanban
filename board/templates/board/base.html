@@ -1,0 +1,646 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JustKanban</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'board/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'board/styles.css' %}">
+</head>
+<body>
+  <div class="app-shell" data-app-shell>
+    <aside class="sidebar" data-sidebar>
+      <div class="sidebar__header">
+        <div class="sidebar__brand">
+          <div class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="presentation">
+              <path
+                fill="var(--accent)"
+                stroke="var(--accent)"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"
+              />
+            </svg>
+          </div>
+          <span class="sidebar__title">JustKanban</span>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <nav class="sidebar__nav">
+          <a
+            class="sidebar__nav-link{% if active_page == 'overview' %} is-active{% endif %}"
+            href="{% url 'overview' %}"
+          >Overview</a>
+        </nav>
+      </div>
+
+      <div class="sidebar__section sidebar__boards">
+        <h2 class="sidebar__heading">Boards</h2>
+        <ul class="sidebar__list">
+          {% for board in boards %}
+            <li class="sidebar__item{% if active_page == 'board' and active_board and board.id == active_board.id %} is-active{% endif %}" data-board-item>
+              <a
+                class="sidebar__link"
+                href="{% url 'board_detail' board.id %}"
+                {% if active_page == 'board' and active_board and board.id == active_board.id %}aria-current="page"{% endif %}
+              >{{ board.name }}</a>
+              <div class="sidebar__actions" aria-hidden="true">
+                <button
+                  type="button"
+                  class="sidebar__icon-btn"
+                  data-board-rename
+                  data-board-name="{{ board.name|escape }}"
+                  data-board-rename-url="{% url 'board_rename' board.id %}"
+                  aria-label="Board {{ board.name }} umbenennen"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+                    />
+                  </svg>
+                </button>
+                <button
+                  type="submit"
+                  form="board-delete-{{ board.id }}"
+                  class="sidebar__icon-btn sidebar__icon-btn--danger"
+                  data-board-delete
+                  data-board-name="{{ board.name|escape }}"
+                  aria-label="Board {{ board.name }} löschen"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <form id="board-delete-{{ board.id }}" class="sr-only" method="post" action="{% url 'board_delete' board.id %}">
+                {% csrf_token %}
+              </form>
+            </li>
+          {% empty %}
+            <li class="sidebar__empty">Noch keine Boards</li>
+          {% endfor %}
+        </ul>
+        <button type="button" class="sidebar__create-btn sidebar__create-btn--inline" data-board-create>
+          <span class="sidebar__create-icon" aria-hidden="true"></span>
+          <span>New Board</span>
+        </button>
+      </div>
+      <div
+        class="sidebar__resizer"
+        data-sidebar-resizer
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Sidebar Breite anpassen"
+        aria-valuemin="200"
+        aria-valuemax="420"
+        aria-valuenow="280"
+      ></div>
+    </aside>
+
+    <div class="app-shell__body">
+      <main class="container">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" data-board-modal hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="board-modal-title">
+      <button type="button" class="modal__close" data-modal-close aria-label="Close dialog">×</button>
+      <h3 class="modal__title" id="board-modal-title">Rename Board</h3>
+      <form method="post" class="modal__form">
+        {% csrf_token %}
+        <label class="field">
+          <span class="field__label">Board name</span>
+          <input name="name" class="input" required>
+        </label>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-modal-close>Cancel</button>
+          <button class="btn btn--accent" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" data-board-create-modal hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="board-create-modal-title">
+      <button type="button" class="modal__close" data-modal-close aria-label="Close dialog">×</button>
+      <h3 class="modal__title" id="board-create-modal-title">New Board</h3>
+      <form method="post" action="{% url 'board_create' %}" class="modal__form">
+        {% csrf_token %}
+        <label class="field">
+          <span class="field__label">Board name</span>
+          <input name="name" class="input" value="New Board" required>
+        </label>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-modal-close>Cancel</button>
+          <button class="btn btn--accent" type="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% block extra_scripts %}
+  <script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const appShell = document.querySelector("[data-app-shell]");
+    const sidebar = document.querySelector("[data-sidebar]");
+    const sidebarResizer = document.querySelector("[data-sidebar-resizer]");
+    const renameButtons = document.querySelectorAll("[data-board-rename]");
+    const deleteButtons = document.querySelectorAll("[data-board-delete]");
+    const createTrigger = document.querySelector("[data-board-create]");
+    const createModalOverlay = document.querySelector("[data-board-create-modal]");
+    const createModalForm = createModalOverlay ? createModalOverlay.querySelector("form") : null;
+    const createModalInput = createModalForm ? createModalForm.querySelector("input[name='name']") : null;
+    const createModalCloseControls = createModalOverlay ? createModalOverlay.querySelectorAll("[data-modal-close]") : [];
+    const boardModalOverlay = document.querySelector("[data-board-modal]");
+    const boardModalForm = boardModalOverlay ? boardModalOverlay.querySelector("form") : null;
+    const boardModalInput = boardModalForm ? boardModalForm.querySelector("input[name='name']") : null;
+    const boardModalCloseControls = boardModalOverlay ? boardModalOverlay.querySelectorAll("[data-modal-close]") : [];
+
+    let activeRenameButton = null;
+
+    const openBoardRenameModal = (button) => {
+      if (!boardModalOverlay || !boardModalForm || !boardModalInput) return;
+      activeRenameButton = button;
+      const action = button.dataset.boardRenameUrl || "";
+      boardModalForm.setAttribute("action", action);
+      const currentName = button.dataset.boardName || "";
+      boardModalInput.value = currentName;
+      boardModalOverlay.removeAttribute("hidden");
+      boardModalOverlay.classList.add("is-visible");
+      window.requestAnimationFrame(() => {
+        boardModalInput.focus();
+        boardModalInput.select();
+      });
+    };
+
+    const closeBoardRenameModal = () => {
+      if (!boardModalOverlay || !boardModalForm || !boardModalInput) return;
+      boardModalOverlay.classList.remove("is-visible");
+      boardModalOverlay.setAttribute("hidden", "");
+      boardModalForm.setAttribute("action", "");
+      boardModalForm.reset();
+      activeRenameButton = null;
+    };
+
+    const openBoardCreateModal = () => {
+      if (!createModalOverlay || !createModalForm || !createModalInput) return;
+      createModalOverlay.removeAttribute("hidden");
+      createModalOverlay.classList.add("is-visible");
+      window.requestAnimationFrame(() => {
+        createModalInput.focus();
+        createModalInput.select();
+      });
+    };
+
+    const closeBoardCreateModal = () => {
+      if (!createModalOverlay || !createModalForm || !createModalInput) return;
+      createModalOverlay.classList.remove("is-visible");
+      createModalOverlay.setAttribute("hidden", "");
+      createModalForm.reset();
+      createModalInput.value = "New Board";
+    };
+
+    const MIN_WIDTH = 200;
+    const MAX_WIDTH = 420;
+    const STORAGE_KEY = "kanban.sidebarWidth";
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+    const updateResizerAria = (width, max) => {
+      if (!sidebarResizer) return;
+      sidebarResizer.setAttribute("aria-valuenow", String(Math.round(width)));
+      if (typeof max === "number") {
+        sidebarResizer.setAttribute("aria-valuemax", String(Math.round(max)));
+      }
+    };
+
+    const setSidebarWidth = (width) => {
+      if (!appShell) return;
+      const maxAllowed = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, window.innerWidth - 160));
+      const clamped = clamp(width, MIN_WIDTH, maxAllowed);
+      appShell.style.setProperty("--sidebar-width", `${clamped}px`);
+      updateResizerAria(clamped, maxAllowed);
+      try {
+        window.localStorage.setItem(STORAGE_KEY, String(clamped));
+      } catch (e) {
+        /* ignore storage errors */
+      }
+    };
+
+    if (appShell && sidebar && sidebarResizer) {
+      let initial = null;
+      try {
+        const stored = window.localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          initial = parseFloat(stored);
+        }
+      } catch (e) {
+        initial = null;
+      }
+      if (!Number.isFinite(initial)) {
+        initial =
+          parseFloat(getComputedStyle(appShell).getPropertyValue("--sidebar-width")) ||
+          sidebar.getBoundingClientRect().width ||
+          MIN_WIDTH;
+      }
+      setSidebarWidth(initial);
+
+      sidebarResizer.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        const pointerId = event.pointerId;
+        try {
+          sidebarResizer.setPointerCapture(pointerId);
+        } catch (e) {
+          /* ignore */
+        }
+        document.body.classList.add("is-resizing");
+
+        const handleMove = (moveEvent) => {
+          const clientX = moveEvent.clientX;
+          const shellRect = appShell.getBoundingClientRect();
+          setSidebarWidth(clientX - shellRect.left);
+        };
+
+        const stop = () => {
+          document.body.classList.remove("is-resizing");
+          sidebarResizer.removeEventListener("pointermove", handleMove);
+          sidebarResizer.removeEventListener("pointerup", stop);
+          sidebarResizer.removeEventListener("pointercancel", stop);
+          try {
+            sidebarResizer.releasePointerCapture(pointerId);
+          } catch (e) {
+            /* ignore */
+          }
+        };
+
+        sidebarResizer.addEventListener("pointermove", handleMove);
+        sidebarResizer.addEventListener("pointerup", stop);
+        sidebarResizer.addEventListener("pointercancel", stop);
+      });
+
+      let resizeTimer;
+      window.addEventListener("resize", () => {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+          const current =
+            parseFloat(getComputedStyle(appShell).getPropertyValue("--sidebar-width")) ||
+            sidebar.getBoundingClientRect().width ||
+            MIN_WIDTH;
+          setSidebarWidth(current);
+        }, 120);
+      });
+    }
+
+    renameButtons.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        openBoardRenameModal(button);
+      });
+    });
+
+    if (boardModalForm) {
+      boardModalForm.addEventListener("submit", () => {
+        if (activeRenameButton && boardModalInput) {
+          activeRenameButton.dataset.boardName = boardModalInput.value.trim();
+        }
+      });
+    }
+
+    boardModalCloseControls.forEach((control) => {
+      control.addEventListener("click", (event) => {
+        event.preventDefault();
+        closeBoardRenameModal();
+      });
+    });
+
+    if (boardModalOverlay) {
+      boardModalOverlay.addEventListener("click", (event) => {
+        if (event.target === boardModalOverlay) {
+          closeBoardRenameModal();
+        }
+      });
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        if (boardModalOverlay && boardModalOverlay.classList.contains("is-visible")) {
+          closeBoardRenameModal();
+        }
+        if (createModalOverlay && createModalOverlay.classList.contains("is-visible")) {
+          closeBoardCreateModal();
+        }
+      }
+    });
+
+    deleteButtons.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const formId = button.getAttribute("form");
+        if (!formId) return;
+        const form = document.getElementById(formId);
+        if (!form) return;
+        event.preventDefault();
+        const boardName = button.dataset.boardName || "dieses Board";
+        const confirmDelete = window.confirm(`Soll "${boardName}" wirklich gelöscht werden?`);
+        if (confirmDelete) {
+          form.submit();
+        }
+      });
+    });
+
+    if (createTrigger) {
+      createTrigger.addEventListener("click", openBoardCreateModal);
+    }
+
+    if (createModalForm) {
+      createModalForm.addEventListener("submit", () => {
+        if (createModalInput) {
+          createModalInput.value = createModalInput.value.trim();
+        }
+      });
+    }
+
+    createModalCloseControls.forEach((control) => {
+      control.addEventListener("click", (event) => {
+        event.preventDefault();
+        closeBoardCreateModal();
+      });
+    });
+
+    if (createModalOverlay) {
+      createModalOverlay.addEventListener("click", (event) => {
+        if (event.target === createModalOverlay) {
+          closeBoardCreateModal();
+        }
+      });
+    }
+
+    const overlay = document.querySelector("[data-modal-overlay]");
+    if (!overlay) return;
+
+    const form = overlay.querySelector("form");
+    const columnInput = form.querySelector("input[name='column_id']");
+    const titleInput = form.querySelector("input[name='title']");
+    const descriptionInput = form.querySelector("textarea[name='description']");
+    const prioritySelect = form.querySelector("select[name='priority']");
+    const dueInput = form.querySelector("input[name='due_date']");
+    const assigneeInput = form.querySelector("input[name='assignee']");
+    const modalTitle = overlay.querySelector(".modal__title");
+    const submitBtn = form.querySelector(".btn.btn--accent");
+    const addAction = form.getAttribute("action");
+    const triggers = document.querySelectorAll("[data-addcard-for]");
+    const editButtons = document.querySelectorAll("[data-edit-card]");
+    const closeElements = overlay.querySelectorAll("[data-modal-close]");
+
+    const getCsrfToken = () => {
+      const match = document.cookie.match(/csrftoken=([^;]+)/);
+      if (match) {
+        return decodeURIComponent(match[1]);
+      }
+      const input = document.querySelector("input[name='csrfmiddlewaretoken']");
+      return input ? input.value : "";
+    };
+
+    const updateColumnCounts = () => {
+      document.querySelectorAll(".column").forEach((column) => {
+        const countEl = column.querySelector(".pill");
+        const list = column.querySelector(".cardlist");
+        if (countEl && list) {
+          countEl.textContent = list.querySelectorAll(".card").length;
+        }
+      });
+    };
+
+    const setDefaultFormState = () => {
+      form.reset();
+      columnInput.value = "";
+      prioritySelect.value = "";
+      dueInput.value = "";
+      assigneeInput.value = "";
+      form.setAttribute("action", addAction);
+      modalTitle.textContent = "New Card";
+      submitBtn.textContent = "Save";
+    };
+
+    const showOverlay = () => {
+      overlay.removeAttribute("hidden");
+      overlay.classList.add("is-visible");
+      window.requestAnimationFrame(() => {
+        titleInput.focus();
+      });
+    };
+
+    const openModal = ({ mode, columnId, card, action }) => {
+      setDefaultFormState();
+      if (columnId) {
+        columnInput.value = columnId;
+      }
+      if (mode === "edit" && card) {
+        if (action) {
+          form.setAttribute("action", action);
+        }
+        modalTitle.textContent = "Edit Card";
+        submitBtn.textContent = "Update";
+        titleInput.value = card.title || "";
+        descriptionInput.value = card.description || "";
+        prioritySelect.value = card.priority || "";
+        dueInput.value = card.due || "";
+        assigneeInput.value = card.assignee || "";
+      }
+      showOverlay();
+    };
+
+    const closeModal = () => {
+      overlay.classList.remove("is-visible");
+      overlay.setAttribute("hidden", "");
+      setDefaultFormState();
+    };
+
+    triggers.forEach((btn) => {
+      btn.addEventListener("click", () => openModal({ mode: "add", columnId: btn.dataset.addcardFor }));
+    });
+
+    editButtons.forEach((btn) => {
+      btn.addEventListener("click", () =>
+        openModal({
+          mode: "edit",
+          columnId: btn.dataset.cardColumn,
+          action: btn.dataset.editUrl,
+          card: {
+            id: btn.dataset.cardId,
+            title: btn.dataset.cardTitle,
+            description: btn.dataset.cardDescription,
+            priority: btn.dataset.cardPriority,
+            due: btn.dataset.cardDue,
+            assignee: btn.dataset.cardAssignee,
+          },
+        })
+      );
+    });
+
+    closeElements.forEach((el) => {
+      el.addEventListener("click", closeModal);
+    });
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        closeModal();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && overlay.classList.contains("is-visible")) {
+        closeModal();
+      }
+    });
+
+    const applyDoneStyling = (cardNode, columnSlug) => {
+      if (!cardNode) return;
+      if ((columnSlug || "") === "done") {
+        cardNode.classList.add("card--done");
+      } else {
+        cardNode.classList.remove("card--done");
+      }
+    };
+
+    const enableDragAndDrop = () => {
+      const columns = document.querySelectorAll(".column");
+      const cards = document.querySelectorAll(".card");
+      let draggedCard = null;
+
+      const clearDropTargets = () => {
+        document.querySelectorAll(".column.is-drop-target").forEach((column) => {
+          column.classList.remove("is-drop-target");
+        });
+      };
+
+      cards.forEach((card) => {
+        card.addEventListener("dragstart", (event) => {
+          draggedCard = card;
+          card.classList.add("is-dragging");
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", card.dataset.cardId || "");
+        });
+
+        card.addEventListener("dragend", () => {
+          card.classList.remove("is-dragging");
+          draggedCard = null;
+          clearDropTargets();
+        });
+      });
+
+      columns.forEach((column) => {
+        const list = column.querySelector(".cardlist");
+        const targetColumnId = column.dataset.columnId;
+        const targetColumnSlug = column.dataset.columnSlug || "";
+
+        column.addEventListener("dragover", (event) => {
+          if (!draggedCard) return;
+          event.preventDefault();
+          clearDropTargets();
+          column.classList.add("is-drop-target");
+          event.dataTransfer.dropEffect = "move";
+        });
+
+        column.addEventListener("drop", (event) => {
+          event.preventDefault();
+          column.classList.remove("is-drop-target");
+          clearDropTargets();
+          if (!draggedCard || !list || !targetColumnId) return;
+
+          const cardNode = draggedCard;
+          const currentColumn = cardNode.dataset.cardColumn;
+          if (currentColumn === targetColumnId) {
+            cardNode.classList.remove("is-dragging");
+            draggedCard = null;
+            return;
+          }
+
+          const moveUrl = cardNode.dataset.moveUrl;
+          if (!moveUrl) return;
+
+          const formData = new FormData();
+          const csrfToken = getCsrfToken();
+          formData.append("target_column_id", targetColumnId);
+          if (csrfToken) {
+            formData.append("csrfmiddlewaretoken", csrfToken);
+          }
+
+          const sourceList = cardNode.closest(".cardlist");
+
+          fetch(moveUrl, {
+            method: "POST",
+            body: formData,
+            headers: {
+              "X-CSRFToken": csrfToken || "",
+              "X-Requested-With": "XMLHttpRequest",
+              Accept: "application/json",
+            },
+            credentials: "same-origin",
+          })
+            .then(async (response) => {
+              if (!response.ok) {
+                const errorText = await response.text().catch(() => "");
+                throw new Error(errorText || `Move failed (${response.status})`);
+              }
+              return response.json().catch(() => ({}));
+            })
+              .then(() => {
+                const targetPlaceholder = list.querySelector(".empty");
+                if (targetPlaceholder) {
+                  targetPlaceholder.remove();
+                }
+
+                list.appendChild(cardNode);
+                cardNode.dataset.cardColumn = targetColumnId;
+                const editBtn = cardNode.querySelector("[data-edit-card]");
+                if (editBtn) {
+                  editBtn.dataset.cardColumn = targetColumnId;
+                }
+
+                applyDoneStyling(cardNode, targetColumnSlug);
+
+                if (sourceList && sourceList.querySelectorAll(".card").length === 0) {
+                  const placeholder = document.createElement("li");
+                  placeholder.className = "empty";
+                  placeholder.textContent = "No cards yet";
+                  sourceList.appendChild(placeholder);
+                }
+
+                cardNode.classList.remove("is-dragging");
+                draggedCard = null;
+                updateColumnCounts();
+              })
+              .catch((error) => {
+                console.error(error);
+                cardNode.classList.remove("is-dragging");
+                draggedCard = null;
+                alert("Moving the card failed. Please try again.");
+              });
+        });
+      });
+    };
+
+    enableDragAndDrop();
+  });
+  </script>
+  {% endblock %}
+</body>
+</html>
